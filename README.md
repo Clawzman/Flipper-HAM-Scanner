@@ -1,6 +1,6 @@
 # 📡 Flipper Zero Ham Radio Scanner
 
-A lightweight SubGHz radio scanner, designed to behave like a simple handheld scanner for common radio bands.
+A lightweight SubGHz radio scanner, designed to behave like a scanner for common radio bands.
 
 ---
 
@@ -70,7 +70,7 @@ A lightweight SubGHz radio scanner, designed to behave like a simple handheld sc
   Experiment with your radios voltage output and the apps squelch level.
 * Scanning FRS/GMRS band! Remember, some channels like CH-6 (462.687) and CH-20 (462.675) 
   are very close to each other, so scanner might choose one or the other.
-* When testing, hold your flippers antenna close to your radios antenna.
+* When testing accuracy, hold your flippers antenna close to your radios antenna.
 * When putting scan on HOLD, Exiting app or entering Menu, give it a couple of seconds. Its working HARD!
 
 ---
