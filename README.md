@@ -21,7 +21,7 @@ A lightweight SubGHz radio scanner, designed to behave like a simple handheld sc
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="screenshots/main_screen" width="220">
+  <img src="screenshots/main_screen.jpg" width="220">
   <img src="screenshots/menu_screen.jpg" width="220">
 </p>
 
