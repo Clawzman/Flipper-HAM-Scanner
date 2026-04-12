@@ -47,14 +47,10 @@ A lightweight SubGHz radio scanner, designed to behave like a scanner for common
   * PMR
   * FRS/GMRS
 
----
-
 ### Settings
 
 * **Resume Mode** → Behavior after signal detection
 * **Squelch** → Adjust signal threshold
-
----
 
 ### Squelch Screen
 
