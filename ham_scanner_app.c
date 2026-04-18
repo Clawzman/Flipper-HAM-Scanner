@@ -8,6 +8,7 @@
 
 
 static void radio_scanner_apply_freq(RadioScannerApp* app);
+static void radio_scanner_update_rssi(RadioScannerApp* app);
 
 #define RADIO_SCANNER_DEFAULT_RSSI        (-100.0f)
 #define RADIO_SCANNER_DEFAULT_SENSITIVITY (-85.0f)
@@ -17,6 +18,7 @@ static void radio_scanner_apply_freq(RadioScannerApp* app);
 #define CHANNEL_SETTLE_MS 15
 #define SCAN_PASS_DELAY 10
 #define MENU_ITEMS_COUNT 3
+#define RSSI_OFFSET 6.0f
 
 static const uint32_t pmr446_channels[] = {
     446006250, 446018750, 446031250, 446043750,
@@ -58,11 +60,16 @@ canvas_draw_str(canvas, 90, 10, app->scanning ? "SCAN" : "HOLD");
     char freq[32];
     snprintf(freq, sizeof(freq), "%.3f", (double)app->frequency / 1000000);
     canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignCenter, freq);
+    canvas_set_font(canvas, FontSecondary);
 
 float target = (app->rssi + 100) / 8.0f;
 app->bars_smooth = (0.5f * target) + (0.5f * app->bars_smooth);
 
 int bars = (int)app->bars_smooth;
+
+char rssi_str[20];
+snprintf(rssi_str, sizeof(rssi_str), "RSSI %d", (int)app->rssi);
+canvas_draw_str(canvas, 70, 50, rssi_str);
 
 if(bars < 0) bars = 0;
 if(bars > 10) bars = 10;
@@ -114,7 +121,10 @@ static float radio_scanner_get_avg_rssi(RadioScannerApp* app) {
     float total = 0;
 
     for(int i = 0; i < samples; i++) {
-        total += subghz_devices_get_rssi(app->radio_device);
+        float raw = subghz_devices_get_rssi(app->radio_device);
+        float calibrated = raw - RSSI_OFFSET;
+
+        total += calibrated;
         furi_delay_ms(RSSI_DELAY_MS);
     }
 
@@ -151,7 +161,7 @@ return (best * 0.7f) + (center_rssi * 0.3f);
 }
 
 static float radio_scanner_smooth_rssi(RadioScannerApp* app, float new_rssi) {
-    const float alpha = 0.2f; // smoothing factor (0.1 = very smooth, 0.5 = fast)
+    float alpha = app->scanning ? 0.45f : 0.7f; // smoothing factor (0.1 = very smooth, 0.5 = fast)
 
     app->rssi_smoothed = (alpha * new_rssi) + ((1.0f - alpha) * app->rssi_smoothed);
     return app->rssi_smoothed;
@@ -496,8 +506,11 @@ static void radio_scanner_rx_callback(const void* d, size_t s, void* ctx) {
 }
 
 static void radio_scanner_update_rssi(RadioScannerApp* app) {
-    float raw = subghz_devices_get_rssi(app->radio_device);
-    app->rssi = radio_scanner_smooth_rssi(app, raw);
+    if(!app || !app->radio_device) return;
+
+float raw = subghz_devices_get_rssi(app->radio_device);
+float calibrated = raw - RSSI_OFFSET;
+app->rssi = radio_scanner_smooth_rssi(app, calibrated);
 }
 
 static bool radio_scanner_init_subghz(RadioScannerApp* app) {
@@ -588,28 +601,28 @@ if(app->signal_locked) {
 }
 
     // ============================ SPEED CONFIG =================
-    int passes = 2;
-    int settle = 15;
+int passes = 2;
+int settle = 8;  // default
 
-    switch(app->scan_speed) {
-        case ScanSpeedFast:
-            passes = 1;
-            settle = 10;
-            break;
+switch(app->scan_speed) {
+    case ScanSpeedFast:
+        passes = 1;
+        settle = 5;
+        break;
 
-        case ScanSpeedBalanced:
-            passes = 2;
-            settle = 18;
-            break;
+    case ScanSpeedBalanced:
+        passes = 2;
+        settle = 8;
+        break;
 
-        case ScanSpeedAccurate:
-            passes = 2;
-            settle = 20;
-            break;
+    case ScanSpeedAccurate:
+        passes = 2;
+        settle = 12;
+        break;
 
-        default:
-            break;
-    }
+    default:
+        break;
+}
 
     // ================= MULTIPASS SCAN ==========================
 float scores[128];
@@ -622,14 +635,23 @@ for(size_t i = 0; i < app->channel_count; i++) {
 
         for(size_t i = 0; i < app->channel_count; i++) {
             if(!app->scanning) return;
+            
+float live;
 
-            app->channel_index = i;
-            app->frequency = app->channels[i];
+app->channel_index = i;
+app->frequency = app->channels[i];
 
-            radio_scanner_apply_freq(app);
-            furi_delay_ms(settle);
+radio_scanner_apply_freq(app);
+furi_delay_ms(settle);
 
-            float rssi;
+float raw = subghz_devices_get_rssi(app->radio_device);
+live = raw - RSSI_OFFSET;
+
+float alpha_scan = 0.6f; 
+app->rssi_smoothed = (alpha_scan * live) + ((1.0f - alpha_scan) * app->rssi_smoothed);
+app->rssi = app->rssi_smoothed;
+
+float rssi;
 
 if(app->scan_speed == ScanSpeedFast) {
     rssi = radio_scanner_get_avg_rssi(app);
@@ -809,10 +831,10 @@ int32_t ham_scanner_app(void* p) {
 
     while(app->running) {
 
-        if(app->scanning)
-            radio_scanner_process_scanning(app);
-        else
-            radio_scanner_update_rssi(app);
+radio_scanner_update_rssi(app);
+
+if(app->scanning)
+    radio_scanner_process_scanning(app);
 
 if(furi_message_queue_get(app->event_queue, &event, 10) == FuriStatusOk) {
 
